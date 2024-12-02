@@ -44,22 +44,65 @@ CMD ["python", "api_insert_books.py"]
 Defines the service configuration for running the application.
 
 ```yaml
-version: "3.8"
+version: '1.0'
 
 services:
-  api-inserter:
+  flask_app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: api-inserter
-    environment:
-      - API_URL=http://localhost:5000/books
+    ports:
+      - "5000:5000"
     networks:
-      - app-network
-    restart: unless-stopped
+      - app_network
+    depends_on:
+      - mongodb
+      - redis
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongo_db
+    ports:
+      - "27017:27017"
+    networks:
+      - app_network
+
+  redis:
+    image: redis:latest
+    container_name: redis_cache
+    ports:
+      - "6379:6379"
+    networks:
+      - app_network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python worker.py
+    deploy:
+      replicas: 5
+    networks:
+      - app_network
+    depends_on:
+      - redis
+      - flask_app
+
+  # To monitor queue but currently facing issue
+  rq_dashboard:
+    image: eoranged/rq-dashboard
+    ports:
+      - "9181:9181"
+    environment:
+      - RQ_DASHBOARD_REDIS_HOST=redis
+      - RQ_DASHBOARD_REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - app_network
 
 networks:
-  app-network:
+  app_network:
     driver: bridge
 ```
 
